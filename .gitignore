@@ -1,0 +1,17 @@
+.gradle/
+.kotlin/
+build/
+*/build/
+local.properties
+.idea/
+*.iml
+
+# Android Studio / IntelliJ
+captures/
+.externalNativeBuild/
+.cxx/
+
+# Generated signing and environment files
+*.jks
+*.keystore
+secrets.properties

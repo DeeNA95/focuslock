@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">FocusLock</string>
+    <string name="accessibility_service_label">FocusLock (soft lock)</string>
+    <string name="accessibility_service_description">FocusLock observes which app is in the foreground so it can intercept distracting apps during an active focus session. It never reads screen content.</string>
+</resources>
