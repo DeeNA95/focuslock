@@ -7,6 +7,7 @@ import com.focuslock.domain.model.ActivationWindow
 import com.focuslock.domain.model.EnforcementMode
 import com.focuslock.domain.model.FocusProfile
 import com.focuslock.domain.model.InstalledApp
+import com.focuslock.domain.model.OpenBehavior
 import com.focuslock.domain.repository.AppRepository
 import com.focuslock.domain.repository.ProfileRepository
 import com.focuslock.domain.safety.SafetyPolicy
@@ -37,7 +38,14 @@ data class ProfileDraft(
     val daysOfWeek: Set<DayOfWeek> = DayOfWeek.entries.toSet(),
     val enforcementMode: EnforcementMode = EnforcementMode.SOFT,
     val fortressModeEnabled: Boolean = false,
+    val openBehavior: OpenBehavior = OpenBehavior.BLOCK,
+    val enableDnd: Boolean = false,
     val motto: String = "",
+    /**
+     * Activation windows the editor does not expose but must not discard when
+     * re-saving an existing profile (the UI only edits the first window).
+     */
+    val extraActivationWindows: List<ActivationWindow> = emptyList(),
 ) {
     val totalMinutes: Int get() = durationHours * 60 + durationMinutes
     val isValid: Boolean get() = name.isNotBlank() && totalMinutes >= 1
@@ -54,12 +62,14 @@ data class ProfileDraft(
                     end = LocalTime.of(endHour, endMinute),
                     daysOfWeek = daysOfWeek,
                 )
-            )
+            ) + extraActivationWindows
         } else {
             emptyList()
         },
         enforcementMode = enforcementMode,
         fortressModeEnabled = fortressModeEnabled,
+        openBehavior = openBehavior,
+        enableDnd = enableDnd,
         enabled = true,
         motto = motto.trim(),
     )
@@ -129,6 +139,12 @@ class ProfileEditorViewModel @Inject constructor(
     fun setFortressMode(value: Boolean) =
         _draft.update { it.copy(fortressModeEnabled = value) }
 
+    fun setOpenBehavior(value: OpenBehavior) =
+        _draft.update { it.copy(openBehavior = value) }
+
+    fun setEnableDnd(value: Boolean) =
+        _draft.update { it.copy(enableDnd = value) }
+
     fun updateMotto(value: String) =
         _draft.update { it.copy(motto = value) }
 
@@ -162,7 +178,10 @@ class ProfileEditorViewModel @Inject constructor(
             daysOfWeek = window?.daysOfWeek ?: DayOfWeek.entries.toSet(),
             enforcementMode = enforcementMode,
             fortressModeEnabled = fortressModeEnabled,
+            openBehavior = openBehavior,
+            enableDnd = enableDnd,
             motto = motto,
+            extraActivationWindows = activationWindows.drop(1),
         )
     }
 

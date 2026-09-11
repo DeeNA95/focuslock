@@ -5,6 +5,7 @@ object Routes {
     const val PROFILE_EDITOR = "profile_editor"
     const val TAGS = "tags"
     const val DIAGNOSTICS = "diagnostics"
+    const val STATS = "stats"
 
     fun profileEditor(profileId: String? = null): String =
         if (profileId == null) PROFILE_EDITOR else "$PROFILE_EDITOR?profileId=$profileId"

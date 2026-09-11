@@ -30,11 +30,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.focuslock.domain.model.EnforcementMode
+import com.focuslock.domain.model.OpenBehavior
 import com.focuslock.ui.apppicker.AppPickerDialog
 import com.focuslock.ui.design.FocusCard
 import com.focuslock.ui.design.FocusPrimaryButton
@@ -42,6 +44,7 @@ import com.focuslock.ui.design.FocusSpacing
 import com.focuslock.ui.design.FocusTextButton
 import com.focuslock.ui.design.FocusTopBar
 import com.focuslock.ui.design.SectionHeader
+import com.focuslock.util.NotificationPolicyHelper
 import java.time.DayOfWeek
 
 private val DAYS_ORDER = listOf(
@@ -56,6 +59,7 @@ fun ProfileEditorScreen(
 ) {
     val draft by viewModel.draft.collectAsStateWithLifecycle()
     val installedApps by viewModel.installedApps.collectAsStateWithLifecycle()
+    val context = LocalContext.current
     var showAppPicker by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
@@ -216,6 +220,40 @@ fun ProfileEditorScreen(
                         subtitle = "Extra anti-circumvention policies (Hard Lock only).",
                         checked = draft.fortressModeEnabled,
                         onCheckedChange = viewModel::setFortressMode,
+                    )
+                }
+            }
+
+            // Behavior
+            SectionHeader(
+                title = "When a blocked app is opened",
+                subtitle = "Block it completely, or pause to breathe then allow it.",
+            )
+            FocusCard(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(FocusSpacing.L)) {
+                    ModeRow(
+                        label = "Block",
+                        description = "Show the cover and send you Home.",
+                        selected = draft.openBehavior == OpenBehavior.BLOCK,
+                        onClick = { viewModel.setOpenBehavior(OpenBehavior.BLOCK) },
+                    )
+                    ModeRow(
+                        label = "Breathe, then allow",
+                        description = "A short breathing pause before the app opens.",
+                        selected = draft.openBehavior == OpenBehavior.BREATHE,
+                        onClick = { viewModel.setOpenBehavior(OpenBehavior.BREATHE) },
+                    )
+                    Spacer(Modifier.height(FocusSpacing.S))
+                    SwitchRow(
+                        title = "Do Not Disturb",
+                        subtitle = "Silence interruptions for the whole session.",
+                        checked = draft.enableDnd,
+                        onCheckedChange = { enabled ->
+                            viewModel.setEnableDnd(enabled)
+                            if (enabled && !NotificationPolicyHelper.hasAccess(context)) {
+                                NotificationPolicyHelper.openSettings(context)
+                            }
+                        },
                     )
                 }
             }

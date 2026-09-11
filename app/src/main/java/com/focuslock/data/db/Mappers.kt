@@ -11,6 +11,7 @@ import com.focuslock.domain.model.ActivationWindow
 import com.focuslock.domain.model.EnforcementMode
 import com.focuslock.domain.model.FocusProfile
 import com.focuslock.domain.model.FocusSession
+import com.focuslock.domain.model.OpenBehavior
 import com.focuslock.domain.model.SessionEvent
 import com.focuslock.domain.model.SessionStatus
 import com.focuslock.domain.model.TagBinding
@@ -39,6 +40,8 @@ fun FocusProfile.toEntity(): FocusProfileEntity = FocusProfileEntity(
     durationMillis = duration.toMillis(),
     enforcementMode = enforcementMode.name,
     fortressModeEnabled = fortressModeEnabled,
+    openBehavior = openBehavior.name,
+    enableDnd = enableDnd,
     enabled = enabled,
     motto = motto,
 )
@@ -65,6 +68,8 @@ fun FocusProfileWithDetails.toDomain(): FocusProfile = FocusProfile(
     activationWindows = activationWindows.map { it.toDomain() },
     enforcementMode = EnforcementMode.valueOf(profile.enforcementMode),
     fortressModeEnabled = profile.fortressModeEnabled,
+    openBehavior = OpenBehavior.valueOf(profile.openBehavior),
+    enableDnd = profile.enableDnd,
     enabled = profile.enabled,
     motto = profile.motto,
 )
@@ -85,10 +90,13 @@ fun FocusSession.toEntity(): FocusSessionEntity = FocusSessionEntity(
     profileNameSnapshot = profileNameSnapshot,
     startedAtWallClockMillis = startedAtWallClock.toEpochMilli(),
     startedAtElapsedRealtimeMs = startedAtElapsedRealtimeMs,
+    startedAtBootId = startedAtBootId,
     expiresAtWallClockMillis = expiresAtWallClock.toEpochMilli(),
     durationMillis = duration.toMillis(),
     enforcementMode = enforcementMode.name,
     fortressModeEnabled = fortressModeEnabled,
+    openBehavior = openBehavior.name,
+    enableDnd = enableDnd,
     mottoSnapshot = mottoSnapshot,
     status = status.name,
 )
@@ -102,11 +110,14 @@ fun FocusSessionWithDetails.toDomain(): FocusSession = FocusSession(
     profileNameSnapshot = session.profileNameSnapshot,
     startedAtWallClock = Instant.ofEpochMilli(session.startedAtWallClockMillis),
     startedAtElapsedRealtimeMs = session.startedAtElapsedRealtimeMs,
+    startedAtBootId = session.startedAtBootId,
     expiresAtWallClock = Instant.ofEpochMilli(session.expiresAtWallClockMillis),
     duration = Duration.ofMillis(session.durationMillis),
     blockedPackagesSnapshot = blockedPackages.map { it.packageName }.toSet(),
     enforcementMode = EnforcementMode.valueOf(session.enforcementMode),
     fortressModeEnabled = session.fortressModeEnabled,
+    openBehavior = OpenBehavior.valueOf(session.openBehavior),
+    enableDnd = session.enableDnd,
     mottoSnapshot = session.mottoSnapshot,
     status = SessionStatus.valueOf(session.status),
 )

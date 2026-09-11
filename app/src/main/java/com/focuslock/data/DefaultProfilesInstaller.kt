@@ -89,6 +89,7 @@ class DefaultProfilesInstaller @Inject constructor(
                     )
                 ),
                 enforcementMode = EnforcementMode.SOFT,
+                enableDnd = true,
                 motto = "Put the phone down.",
             )
         )

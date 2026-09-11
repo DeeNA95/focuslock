@@ -3,6 +3,7 @@ package com.focuslock.domain.session
 import com.focuslock.domain.model.EnforcementMode
 import com.focuslock.domain.model.FocusProfile
 import com.focuslock.enforcement.FakeEnforcementBackend
+import com.focuslock.testutil.FakeEnforcementStateStore
 import com.focuslock.testutil.FakeEventLog
 import com.focuslock.testutil.FakeNotifier
 import com.focuslock.testutil.FakeRecoveryKeyManager
@@ -47,6 +48,8 @@ class EmergencyReleaseTest {
         timeAuthority = FakeTimeAuthority(elapsedMillis = 1_000L),
         policyManager = FakeTemporaryPolicyManager(),
         recoveryKeyManager = recovery,
+        stateStore = FakeEnforcementStateStore(),
+        lock = SessionLock(),
     )
 
     @Test

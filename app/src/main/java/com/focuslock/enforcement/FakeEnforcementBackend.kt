@@ -8,6 +8,7 @@ class FakeEnforcementBackend(
     private val type: EnforcementBackendType = EnforcementBackendType.ACCESSIBILITY,
     private val available: Boolean = true,
     private val failOn: Set<String> = emptySet(),
+    private val failResumeOn: Set<String> = emptySet(),
 ) : EnforcementBackend {
 
     private val suspended = mutableSetOf<String>()
@@ -22,8 +23,10 @@ class FakeEnforcementBackend(
     }
 
     override suspend fun resumePackages(packages: Set<String>): EnforcementResult {
-        suspended.removeAll(packages)
-        return EnforcementResult(successful = packages.toSet(), failed = emptySet())
+        val failed = packages.filter { it in failResumeOn }.toSet()
+        val success = packages - failed
+        suspended.removeAll(success)
+        return EnforcementResult(successful = success, failed = failed)
     }
 
     override fun suspendability(packageName: String): Suspendability = Suspendability.SUSPENDABLE

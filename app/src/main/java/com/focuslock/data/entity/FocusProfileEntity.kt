@@ -1,5 +1,6 @@
 package com.focuslock.data.entity
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 
@@ -10,6 +11,8 @@ data class FocusProfileEntity(
     val durationMillis: Long,
     val enforcementMode: String,
     val fortressModeEnabled: Boolean,
+    @ColumnInfo(defaultValue = "BLOCK") val openBehavior: String = "BLOCK",
+    @ColumnInfo(defaultValue = "0") val enableDnd: Boolean = false,
     val enabled: Boolean,
     val motto: String,
 )

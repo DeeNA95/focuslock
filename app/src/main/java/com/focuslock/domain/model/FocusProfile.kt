@@ -17,6 +17,8 @@ data class FocusProfile(
     val activationWindows: List<ActivationWindow> = emptyList(),
     val enforcementMode: EnforcementMode = EnforcementMode.SOFT,
     val fortressModeEnabled: Boolean = false,
+    val openBehavior: OpenBehavior = OpenBehavior.BLOCK,
+    val enableDnd: Boolean = false,
     val enabled: Boolean = true,
     val motto: String = "",
 )

@@ -56,4 +56,10 @@ interface SessionDao {
     @Transaction
     @Query("SELECT * FROM focus_session ORDER BY startedAtWallClockMillis DESC")
     fun observeAll(): Flow<List<FocusSessionWithDetails>>
+
+    @Query(
+        "SELECT * FROM focus_session WHERE status = 'COMPLETED' " +
+            "ORDER BY startedAtWallClockMillis DESC"
+    )
+    fun observeCompletedSessions(): Flow<List<FocusSessionEntity>>
 }

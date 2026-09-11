@@ -24,8 +24,8 @@ import com.focuslock.data.entity.TagBindingEntity
         SessionBlockedPackageEntity::class,
         SessionEventEntity::class,
     ],
-    version = 2,
-    exportSchema = false,
+    version = 4,
+    exportSchema = true,
 )
 abstract class FocusLockDatabase : RoomDatabase() {
     abstract fun profileDao(): ProfileDao

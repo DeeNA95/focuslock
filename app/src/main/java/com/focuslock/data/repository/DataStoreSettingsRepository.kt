@@ -29,6 +29,7 @@ class DataStoreSettingsRepository @Inject constructor(
         val DEFAULT_ENFORCEMENT_MODE = stringPreferencesKey("default_enforcement_mode")
         val CONFIRMATION_REQUIRED = booleanPreferencesKey("confirmation_required")
         val DEV_MODE_ENABLED = booleanPreferencesKey("dev_mode_enabled")
+        val DEFAULTS_SEEDED = booleanPreferencesKey("defaults_seeded")
     }
 
     override val onboardingComplete: Flow<Boolean> =
@@ -45,6 +46,9 @@ class DataStoreSettingsRepository @Inject constructor(
     override val devModeEnabled: Flow<Boolean> =
         context.settingsDataStore.data.map { it[Keys.DEV_MODE_ENABLED] ?: false }
 
+    override val defaultsSeeded: Flow<Boolean> =
+        context.settingsDataStore.data.map { it[Keys.DEFAULTS_SEEDED] ?: false }
+
     override suspend fun setOnboardingComplete(value: Boolean) {
         context.settingsDataStore.edit { it[Keys.ONBOARDING_COMPLETE] = value }
     }
@@ -59,5 +63,9 @@ class DataStoreSettingsRepository @Inject constructor(
 
     override suspend fun setDevModeEnabled(value: Boolean) {
         context.settingsDataStore.edit { it[Keys.DEV_MODE_ENABLED] = value }
+    }
+
+    override suspend fun setDefaultsSeeded(value: Boolean) {
+        context.settingsDataStore.edit { it[Keys.DEFAULTS_SEEDED] = value }
     }
 }

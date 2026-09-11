@@ -29,12 +29,14 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.focuslock.domain.model.FocusSession
-import com.focuslock.ui.design.BadgeTone
+import com.focuslock.ui.components.AppIconRow
 import com.focuslock.ui.design.FocusColors
 import com.focuslock.ui.design.FocusSpacing
 import com.focuslock.ui.design.FocusTextButton
 import com.focuslock.ui.design.ProgressRing
 import com.focuslock.ui.design.StatusBadge
+import com.focuslock.ui.design.modeBadgeTone
+import com.focuslock.ui.design.modeLabel
 import com.focuslock.ui.design.monoStyle
 import com.focuslock.ui.recovery.RecoveryDialog
 import com.focuslock.ui.recovery.RecoveryViewModel
@@ -146,14 +148,22 @@ internal fun ActiveSessionContent(
 
         Row(verticalAlignment = Alignment.CenterVertically) {
             StatusBadge(
-                text = if (session.enforcementMode.name == "HARD") "Hard Lock" else "Soft Lock",
-                tone = if (session.enforcementMode.name == "HARD") BadgeTone.Amber else BadgeTone.Neutral,
+                text = session.enforcementMode.modeLabel,
+                tone = session.enforcementMode.modeBadgeTone,
             )
             Spacer(Modifier.width(FocusSpacing.M))
             Text(
                 "${session.blockedPackagesSnapshot.size} apps unavailable",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+
+        if (session.blockedPackagesSnapshot.isNotEmpty()) {
+            Spacer(Modifier.height(FocusSpacing.L))
+            AppIconRow(
+                packages = session.blockedPackagesSnapshot,
+                iconSize = 28.dp,
             )
         }
 

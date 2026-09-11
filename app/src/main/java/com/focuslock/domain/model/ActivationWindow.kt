@@ -24,9 +24,23 @@ data class ActivationWindow(
      */
     fun containsTime(time: LocalTime): Boolean = isWithinWindow(time, start, end)
 
-    /** True when the window is open at [time] on [day]. */
-    fun isOpenAt(time: LocalTime, day: DayOfWeek): Boolean =
-        includes(day) && containsTime(time)
+    /**
+     * True when the window is open at [time] on [day].
+     *
+     * For a midnight-crossing window (`start > end`) the early-morning portion
+     * belongs to the day the window *started*, so the previous day's selection
+     * is used for times before [end].
+     */
+    fun isOpenAt(time: LocalTime, day: DayOfWeek): Boolean {
+        if (start <= end) {
+            return includes(day) && isWithinWindow(time, start, end)
+        }
+        return when {
+            time >= start -> includes(day)
+            time < end -> includes(day.minus(1L))
+            else -> false
+        }
+    }
 
     companion object {
         /**

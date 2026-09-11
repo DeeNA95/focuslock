@@ -1,4 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.FocusLock" parent="android:Theme.Material.Light.NoActionBar" />
+    <!-- Dark window from the very first frame so there is no light flash while
+         Compose warms up. Mirrors the app's charcoal background. -->
+    <style name="Theme.FocusLock" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/focus_charcoal_900</item>
+        <item name="android:colorBackground">@color/focus_charcoal_900</item>
+        <item name="android:statusBarColor">@color/focus_charcoal_900</item>
+        <item name="android:navigationBarColor">@color/focus_charcoal_900</item>
+        <item name="android:windowDrawsSystemBarBackgrounds">true</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
 </resources>

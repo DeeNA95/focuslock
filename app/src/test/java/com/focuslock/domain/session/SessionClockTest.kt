@@ -15,6 +15,7 @@ class SessionClockTest {
     private fun session(
         startedAtWallClock: Instant = Instant.parse("2026-01-01T20:00:00Z"),
         startedAtElapsedMs: Long = 1_000_000L,
+        startedAtBootId: Long = 0L,
         duration: Duration = Duration.ofHours(8),
     ) = FocusSession(
         id = UUID.randomUUID(),
@@ -22,6 +23,7 @@ class SessionClockTest {
         profileNameSnapshot = "Deep Work",
         startedAtWallClock = startedAtWallClock,
         startedAtElapsedRealtimeMs = startedAtElapsedMs,
+        startedAtBootId = startedAtBootId,
         expiresAtWallClock = startedAtWallClock.plus(duration),
         duration = duration,
         blockedPackagesSnapshot = emptySet(),
@@ -117,6 +119,28 @@ class SessionClockTest {
 
         assertThat(sessionClock.hasRebooted(s)).isTrue()
         assertThat(sessionClock.isExpired(s)).isFalse()
+    }
+
+    @Test
+    fun `boot id detects reboot even after uptime exceeds the previous start value`() {
+        val clock = FakeTimeAuthority(
+            nowInstant = Instant.parse("2026-01-03T04:00:00Z"),
+            elapsedMillis = 2_000_000L,
+            boot = 2L,
+        )
+        val sessionClock = SessionClock(clock)
+        // Started at elapsed 1_000_000 on boot 1; after reboot uptime (2_000_000)
+        // is greater than the old start value, so the elapsed heuristic alone
+        // would wrongly conclude "same boot".
+        val s = session(
+            startedAtWallClock = Instant.parse("2026-01-01T20:00:00Z"),
+            startedAtElapsedMs = 1_000_000L,
+            startedAtBootId = 1L,
+            duration = Duration.ofHours(8),
+        )
+
+        assertThat(sessionClock.hasRebooted(s)).isTrue()
+        assertThat(sessionClock.isExpired(s)).isTrue()
     }
 
     @Test

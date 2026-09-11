@@ -4,21 +4,21 @@ import android.accessibilityservice.AccessibilityService
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
-import android.graphics.Color
-import android.graphics.PixelFormat
+import android.graphics.drawable.Drawable
 import android.os.SystemClock
-import android.view.Gravity
-import android.view.View
 import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
-import android.widget.LinearLayout
-import android.widget.TextView
 import androidx.core.app.NotificationCompat
 import com.focuslock.R
+import com.focuslock.domain.model.EnforcementMode
 import com.focuslock.domain.model.FocusSession
+import com.focuslock.domain.model.OpenBehavior
+import com.focuslock.domain.model.SessionEvent
 import com.focuslock.domain.model.SessionStatus
+import com.focuslock.domain.repository.EventLogRepository
 import com.focuslock.domain.repository.SessionRepository
 import com.focuslock.domain.session.SessionClock
+import com.focuslock.domain.time.TimeAuthority
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -34,7 +34,7 @@ import javax.inject.Inject
 /**
  * Observes the foreground package. When a blocked app becomes foreground this
  * service shows a full-screen overlay (the "resist the temptation" screen) with
- * the profile name, motto and remaining time, then sends the user HOME.
+ * the app icon, the profile motto and remaining time, then sends the user HOME.
  *
  * Only `event.packageName` and `event.eventType` are inspected; a window overlay
  * is drawn over any app but view content is never read.
@@ -44,15 +44,23 @@ class FocusLockAccessibilityService : AccessibilityService() {
 
     @Inject lateinit var sessionRepository: SessionRepository
     @Inject lateinit var sessionClock: SessionClock
+    @Inject lateinit var eventLog: EventLogRepository
+    @Inject lateinit var timeAuthority: TimeAuthority
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val activeSession = MutableStateFlow<FocusSession?>(null)
-    private val lastBlocked = ConcurrentHashMap<String, Long>()
+    private val lastNotified = ConcurrentHashMap<String, Long>()
+    private val allowedUntil = ConcurrentHashMap<String, Long>()
     private val windowManager: WindowManager
         get() = getSystemService(Context.WINDOW_SERVICE) as WindowManager
 
-    private var overlayView: View? = null
+    private val overlay: BlockedAppOverlay by lazy { BlockedAppOverlay(this, windowManager) }
+    private val breatheOverlay: BreatheOverlay by lazy { BreatheOverlay(this, windowManager) }
     private var overlayJob: Job? = null
+    private var closeJob: Job? = null
+    private var breatheJob: Job? = null
+    private var overlayPackage: String? = null
+    private var closing = false
 
     override fun onServiceConnected() {
         super.onServiceConnected()
@@ -61,35 +69,40 @@ class FocusLockAccessibilityService : AccessibilityService() {
             sessionRepository.observeActiveSession().collect { session ->
                 activeSession.value = session
                 if (session == null || session.status != SessionStatus.ACTIVE) {
-                    dismissOverlay()
+                    dismissAll()
                 }
             }
         }
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        val packageName = event?.packageName?.toString() ?: return
+        if (event == null) return
         if (event.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED &&
             event.eventType != AccessibilityEvent.TYPE_WINDOWS_CHANGED
         ) return
 
         val session = activeSession.value ?: return
         if (session.status != SessionStatus.ACTIVE) return
+
+        val packageName = event.packageName?.toString()?.takeIf { it.isNotEmpty() } ?: return
         if (packageName !in session.blockedPackagesSnapshot) return
 
         val now = SystemClock.elapsedRealtime()
-        val last = lastBlocked[packageName] ?: 0L
-        if (now - last < RATE_LIMIT_MS) return
-        lastBlocked[packageName] = now
+        if (now < (allowedUntil[packageName] ?: 0L)) return
 
-        showBlockOverlay(session, resolveLabel(packageName) ?: packageName)
-        notifyBlocked(packageName, session)
-
-        // Give the overlay a moment, then force the user back to the launcher.
-        scope.launch {
-            delay(OVERLAY_DURATION_MS)
-            performGlobalAction(GLOBAL_ACTION_HOME)
-            dismissOverlay()
+        // Enforce on every foreground transition. Only the notification is
+        // rate-limited, so returning to a blocked app via Recents is blocked
+        // immediately rather than being suppressed by a cooldown.
+        when (session.openBehavior) {
+            OpenBehavior.BREATHE -> showBreatheOverlay(session, packageName)
+            OpenBehavior.BLOCK -> {
+                showBlockOverlay(session, packageName)
+                val last = lastNotified[packageName] ?: 0L
+                if (now - last >= NOTIFICATION_RATE_LIMIT_MS) {
+                    lastNotified[packageName] = now
+                    notifyBlocked(packageName, session)
+                }
+            }
         }
     }
 
@@ -97,90 +110,144 @@ class FocusLockAccessibilityService : AccessibilityService() {
 
     override fun onDestroy() {
         super.onDestroy()
-        overlayJob?.cancel()
-        dismissOverlay()
+        dismissAll()
         scope.cancel()
     }
 
-    private fun showBlockOverlay(session: FocusSession, blockedLabel: String) {
-        dismissOverlay()
+    private fun showBlockOverlay(session: FocusSession, packageName: String) {
+        // Ignore events that arrive while the cover is fading out, otherwise a
+        // burst of window events during the transition stacks overlays.
+        if (closing) return
+        // Already covering this app: keep the existing overlay and timer rather
+        // than re-animating on every window event.
+        if (overlay.isShowing && overlayPackage == packageName) return
 
-        val density = resources.displayMetrics.density
-        fun dp(v: Int) = (v * density).toInt()
+        overlayPackage = packageName
+        val label = resolveLabel(packageName) ?: packageName
+        logBlockAttempt(session, packageName)
 
-        val root = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER
-            setBackgroundColor(Color.parseColor("#0E1116"))
-            setPadding(dp(32), dp(32), dp(32), dp(32))
-        }
+        // Snap the cover on with no entrance animation so it fully hides the
+        // blocked app immediately.
+        overlay.show(
+            BlockedOverlayState(
+                profileName = session.profileNameSnapshot,
+                motto = session.mottoSnapshot,
+                appLabel = label,
+                appIcon = resolveIcon(packageName),
+                modeLabel = if (session.enforcementMode == EnforcementMode.HARD) "Hard Lock" else "Soft Lock",
+                unlockTime = BlockedAppOverlay.formatUnlockTime(session.expiresAtWallClock),
+                onDismiss = {
+                    // Tapping early must still remove the app from the
+                    // foreground, otherwise it would be a one-tap bypass.
+                    if (overlay.isShowing) performGlobalAction(GLOBAL_ACTION_HOME)
+                    dismissOverlay()
+                },
+            ),
+            animateIn = false,
+        )
 
-        val nameView = TextView(this).apply {
-            text = session.profileNameSnapshot.uppercase()
-            setTextColor(Color.WHITE)
-            textSize = 18f
-            gravity = Gravity.CENTER
-        }
-        root.addView(nameView)
-
-        val appView = TextView(this).apply {
-            text = "$blockedLabel is locked"
-            setTextColor(Color.parseColor("#9AA4B2"))
-            textSize = 14f
-            gravity = Gravity.CENTER
-            setPadding(0, dp(12), 0, 0)
-        }
-        root.addView(appView)
-
-        if (session.mottoSnapshot.isNotBlank()) {
-            val mottoView = TextView(this).apply {
-                text = "\u201C${session.mottoSnapshot}\u201D"
-                setTextColor(Color.parseColor("#4CAF50"))
-                textSize = 20f
-                gravity = Gravity.CENTER
-                setPadding(0, dp(32), 0, 0)
-            }
-            root.addView(mottoView)
-        }
-
-        val remainingView = TextView(this).apply {
-            setTextColor(Color.parseColor("#9AA4B2"))
-            textSize = 14f
-            gravity = Gravity.CENTER
-            setPadding(0, dp(48), 0, 0)
-        }
-        root.addView(remainingView)
-
-        val params = WindowManager.LayoutParams(
-            WindowManager.LayoutParams.MATCH_PARENT,
-            WindowManager.LayoutParams.MATCH_PARENT,
-            WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
-            PixelFormat.TRANSLUCENT,
-        ).apply {
-            gravity = Gravity.CENTER
-        }
-
-        windowManager.addView(root, params)
-        overlayView = root
-
+        overlayJob?.cancel()
         overlayJob = scope.launch {
             while (true) {
-                remainingView.text = formatRemaining(sessionClock.remaining(session))
+                val remaining = sessionClock.remaining(session)
+                overlay.update(remaining, progressOf(session, remaining))
                 delay(1_000)
             }
+        }
+
+        closeJob?.cancel()
+        closeJob = scope.launch {
+            // Let the opaque cover render, then send the app Home behind it so
+            // the app's own close animation is never visible. The cover stays
+            // for a beat and is the only thing that animates away.
+            delay(HOME_DELAY_MS)
+            performGlobalAction(GLOBAL_ACTION_HOME)
+            delay(OVERLAY_DURATION_MS)
+            dismissOverlay()
+        }
+    }
+
+    private fun showBreatheOverlay(session: FocusSession, packageName: String) {
+        if (closing) return
+        if (breatheOverlay.isShowing && overlayPackage == packageName) return
+
+        overlayPackage = packageName
+        logBlockAttempt(session, packageName)
+        val label = resolveLabel(packageName) ?: packageName
+
+        breatheOverlay.show(
+            BreatheOverlayState(
+                appLabel = label,
+                appIcon = resolveIcon(packageName),
+                onDismiss = { allowAndDismiss(packageName) },
+            )
+        )
+
+        breatheJob?.cancel()
+        breatheJob = scope.launch {
+            for (remaining in BREATHE_SECONDS downTo 1) {
+                breatheOverlay.updateCountdown(remaining)
+                delay(1_000)
+            }
+            allowAndDismiss(packageName)
+        }
+    }
+
+    /** Let the user through after the pause, with a short grace period. */
+    private fun allowAndDismiss(packageName: String) {
+        allowedUntil[packageName] = SystemClock.elapsedRealtime() + ALLOW_COOLDOWN_MS
+        dismissBreathe()
+    }
+
+    private fun dismissBreathe() {
+        val wasShowing = breatheOverlay.isShowing
+        breatheJob?.cancel()
+        breatheJob = null
+        overlayPackage = null
+        breatheOverlay.hide()
+        if (wasShowing) markClosing()
+    }
+
+    private fun logBlockAttempt(session: FocusSession, packageName: String) {
+        scope.launch {
+            eventLog.log(
+                SessionEvent(
+                    timestamp = timeAuthority.now(),
+                    type = SessionEvent.TYPE_BLOCKED_ATTEMPT,
+                    sessionId = session.id,
+                    detail = packageName,
+                )
+            )
         }
     }
 
     private fun dismissOverlay() {
+        val wasShowing = overlay.isShowing
         overlayJob?.cancel()
         overlayJob = null
-        overlayView?.let { view ->
-            runCatching { windowManager.removeView(view) }
-        }
-        overlayView = null
+        closeJob?.cancel()
+        closeJob = null
+        overlayPackage = null
+        overlay.hide()
+        if (wasShowing) markClosing()
     }
+
+    private fun dismissAll() {
+        dismissOverlay()
+        dismissBreathe()
+    }
+
+    private fun markClosing() {
+        closing = true
+        scope.launch {
+            delay(CLOSE_ANIM_MS)
+            closing = false
+        }
+    }
+
+    private fun progressOf(session: FocusSession, remaining: java.time.Duration): Float =
+        if (session.duration.isZero) 0f
+        else (remaining.toMillis().toFloat() / session.duration.toMillis()).coerceIn(0f, 1f)
 
     private fun notifyBlocked(packageName: String, session: FocusSession) {
         val label = resolveLabel(packageName)
@@ -203,13 +270,9 @@ class FocusLockAccessibilityService : AccessibilityService() {
         packageManager.getApplicationLabel(appInfo).toString()
     }.getOrNull()
 
-    private fun formatRemaining(duration: java.time.Duration): String {
-        val total = duration.seconds.coerceAtLeast(0)
-        val h = total / 3600
-        val m = (total % 3600) / 60
-        val s = total % 60
-        return "Unlocks in %02d:%02d:%02d".format(h, m, s)
-    }
+    private fun resolveIcon(packageName: String): Drawable? = runCatching {
+        packageManager.getApplicationIcon(packageName)
+    }.getOrNull()
 
     private fun createChannel() {
         val channel = NotificationChannel(
@@ -228,7 +291,11 @@ class FocusLockAccessibilityService : AccessibilityService() {
             "com.focuslock/com.focuslock.enforcement.accessibility.FocusLockAccessibilityService"
         const val BLOCKED_CHANNEL_ID = "focuslock_blocked_v2"
         const val BLOCKED_NOTIFICATION_ID = 2
-        const val RATE_LIMIT_MS = 3_000L
+        const val NOTIFICATION_RATE_LIMIT_MS = 3_000L
+        const val HOME_DELAY_MS = 120L
         const val OVERLAY_DURATION_MS = 2_500L
+        const val CLOSE_ANIM_MS = 240L
+        const val BREATHE_SECONDS = 8
+        const val ALLOW_COOLDOWN_MS = 60_000L
     }
 }

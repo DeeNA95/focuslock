@@ -25,9 +25,18 @@ class AccessibilityEnforcementBackend @Inject constructor(
 ) : EnforcementBackend {
 
     override suspend fun suspendPackages(packages: Set<String>): EnforcementResult =
-        EnforcementResult(successful = packages, failed = emptySet())
+        // The service enforces by observing the active session, so there is no
+        // OS-level apply step. Still, never claim success if the service is not
+        // actually enabled at the moment of the call.
+        if (isServiceEnabled(context)) {
+            EnforcementResult(successful = packages, failed = emptySet())
+        } else {
+            EnforcementResult(successful = emptySet(), failed = packages)
+        }
 
     override suspend fun resumePackages(packages: Set<String>): EnforcementResult =
+        // With the service disabled nothing is blocked, so resume is trivially
+        // complete (and must not report a failure that would block completion).
         EnforcementResult(successful = packages, failed = emptySet())
 
     override fun suspendability(packageName: String): Suspendability =

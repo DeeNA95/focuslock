@@ -13,4 +13,11 @@ import com.focuslock.domain.model.FocusSession
 interface TemporaryPolicyManager {
     suspend fun apply(session: FocusSession)
     suspend fun restore(session: FocusSession)
+
+    /**
+     * Restore any temporary policy FocusLock may have applied, even when the
+     * originating session is no longer available (e.g. crash during expiry).
+     * Must be idempotent and only ever undo changes FocusLock itself made.
+     */
+    suspend fun restoreAll()
 }

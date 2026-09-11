@@ -9,6 +9,7 @@ import com.focuslock.domain.safety.ProtectedPackageSafetyPolicy
 import com.focuslock.enforcement.EnforcementBackendProvider
 import com.focuslock.enforcement.FakeEnforcementBackend
 import com.focuslock.testutil.FakeEventLog
+import com.focuslock.testutil.FakeEnforcementStateStore
 import com.focuslock.testutil.FakeNotifier
 import com.focuslock.testutil.FakeScheduler
 import com.focuslock.testutil.FakeSessionRepository
@@ -58,6 +59,8 @@ class SessionManagerTest {
         notifier = notifier,
         eventLog = events,
         policyManager = FakeTemporaryPolicyManager(),
+        stateStore = FakeEnforcementStateStore(),
+        lock = SessionLock(),
     )
 
     @Test

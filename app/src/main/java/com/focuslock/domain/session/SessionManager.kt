@@ -1,5 +1,6 @@
 package com.focuslock.domain.session
 
+import com.focuslock.domain.enforcement.EnforcementStateStore
 import com.focuslock.domain.model.ActivationDecision
 import com.focuslock.domain.model.FocusProfile
 import com.focuslock.domain.model.FocusSession
@@ -11,6 +12,7 @@ import com.focuslock.domain.rules.RuleEngine
 import com.focuslock.domain.safety.SafetyPolicy
 import com.focuslock.domain.time.TimeAuthority
 import com.focuslock.enforcement.EnforcementBackendProvider
+import kotlinx.coroutines.sync.withLock
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -20,6 +22,9 @@ import javax.inject.Singleton
  * enforcement transactionally.
  *
  * A session is never persisted as ACTIVE until enforcement has been verified.
+ * Activation is serialised with reconciliation through [SessionLock] so a
+ * concurrent reconcile can never observe (and roll back) a half-applied
+ * activation.
  */
 @Singleton
 class SessionManager @Inject constructor(
@@ -32,9 +37,14 @@ class SessionManager @Inject constructor(
     private val notifier: SessionNotifier,
     private val eventLog: EventLogRepository,
     private val policyManager: TemporaryPolicyManager,
+    private val stateStore: EnforcementStateStore,
+    private val lock: SessionLock,
 ) {
 
-    suspend fun activate(profile: FocusProfile): SessionActivationResult {
+    suspend fun activate(profile: FocusProfile): SessionActivationResult =
+        lock.mutex.withLock { activateLocked(profile) }
+
+    private suspend fun activateLocked(profile: FocusProfile): SessionActivationResult {
         if (sessionRepository.getActiveSession() != null) {
             return SessionActivationResult.Failed(ActivationFailure.SESSION_ALREADY_ACTIVE)
         }
@@ -64,13 +74,15 @@ class SessionManager @Inject constructor(
         if (!result.isComplete) {
             // Roll back anything we did suspend; never leave a partial lock.
             backend.resumePackages(result.successful)
-            sessionRepository.updateStatus(session.id, SessionStatus.FAILED)
+            stateStore.clearSuspended(profile.enforcementMode, result.successful)
+            updateStatus(session, SessionStatus.FAILED)
             log(SessionEvent.TYPE_SESSION_FAILED, session.id, profile.name)
             return SessionActivationResult.Failed(ActivationFailure.ENFORCEMENT_FAILURE)
         }
 
         val active = session.copy(status = SessionStatus.ACTIVE)
-        sessionRepository.updateStatus(session.id, SessionStatus.ACTIVE)
+        updateStatus(session, SessionStatus.ACTIVE)
+        stateStore.recordSuspended(profile.enforcementMode, session.blockedPackagesSnapshot)
         scheduler.scheduleExpiry(active)
         notifier.showActive(active)
         policyManager.apply(active)
@@ -87,14 +99,26 @@ class SessionManager @Inject constructor(
             profileNameSnapshot = profile.name,
             startedAtWallClock = now,
             startedAtElapsedRealtimeMs = timeAuthority.elapsedRealtimeMillis(),
+            startedAtBootId = timeAuthority.bootId(),
             expiresAtWallClock = now.plus(duration),
             duration = duration,
             blockedPackagesSnapshot = profile.blockedPackages,
             enforcementMode = profile.enforcementMode,
             fortressModeEnabled = profile.fortressModeEnabled,
+            openBehavior = profile.openBehavior,
+            enableDnd = profile.enableDnd,
             mottoSnapshot = profile.motto,
             status = status,
         )
+    }
+
+    private suspend fun updateStatus(session: FocusSession, to: SessionStatus): Boolean {
+        if (!SessionStateMachine.canTransition(session.status, to)) {
+            log(SessionEvent.TYPE_RECONCILIATION, session.id, "illegal transition ${session.status} -> $to")
+            return false
+        }
+        sessionRepository.updateStatus(session.id, to)
+        return true
     }
 
     private suspend fun log(type: String, sessionId: UUID, detail: String?) {

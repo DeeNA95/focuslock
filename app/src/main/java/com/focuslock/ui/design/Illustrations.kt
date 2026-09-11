@@ -101,10 +101,13 @@ fun EmptyTagsIllustration(modifier: Modifier = Modifier) {
 }
 
 @Composable
-fun NfcPairingIllustration(modifier: Modifier = Modifier) {
+fun NfcPairingIllustration(
+    modifier: Modifier = Modifier,
+    iconSize: androidx.compose.ui.unit.Dp = 140.dp,
+) {
     val amber = FocusColors.Amber
     val cream = FocusColors.Ivory
-    Canvas(modifier = modifier.size(140.dp)) {
+    Canvas(modifier = modifier.size(iconSize)) {
         val w = size.width
         val h = size.height
         // Phone body

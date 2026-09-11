@@ -65,8 +65,10 @@ interface EnforcementBackend {
   the wall clock forward cannot shorten an active session.
 * `startedAtWallClock` / `expiresAtWallClock` are retained for UI, diagnostics,
   and reboot recovery.
-* After a reboot, `SessionClock` detects the elapsed-clock reset and falls back
-  to the wall-clock expiry snapshot.
+* Each session also snapshots the persisted boot id. After a reboot the boot id
+  changes, so `SessionClock` unambiguously falls back to the wall-clock expiry
+  snapshot (the elapsed-clock reset is only a fallback for legacy records or
+  devices that do not expose a boot count).
 
 ### Profiles vs Sessions
 
@@ -109,6 +111,15 @@ reconcile()
 the same result as running it once. Triggers that call reconciliation include
 app launch, boot, alarms, workers, NFC scans, accessibility events, and package
 events.
+
+A session is only marked `COMPLETED` once the backend has confirmed that every
+snapshotted package is unlocked. If unlocking is incomplete the session stays
+`EXPIRING` and a retry is scheduled. A durable enforcement-state store records
+what FocusLock actually suspended (keyed by backend) so orphaned state left by
+a crash can always be released through the correct backend, even with no active
+session. Activation, reconciliation and release are serialised by a shared
+process-wide lock, so a transient `ACTIVATING` session is never rolled back by a
+concurrent reconcile.
 
 ## Package structure
 

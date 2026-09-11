@@ -77,4 +77,22 @@ class ActivationWindowTest {
         assertThat(window.containsTime(LocalTime.of(0, 0))).isTrue()
         assertThat(window.containsTime(LocalTime.of(23, 59, 59))).isTrue()
     }
+
+    @Test
+    fun `midnight crossing honors the previous day selection after midnight`() {
+        val window = ActivationWindow(
+            start = LocalTime.of(20, 0),
+            end = LocalTime.of(1, 0),
+            daysOfWeek = setOf(DayOfWeek.MONDAY),
+        )
+
+        // Monday evening belongs to Monday.
+        assertThat(window.isOpenAt(LocalTime.of(22, 0), DayOfWeek.MONDAY)).isTrue()
+        // Tuesday 00:30 is the tail of Monday's window.
+        assertThat(window.isOpenAt(LocalTime.of(0, 30), DayOfWeek.TUESDAY)).isTrue()
+        // Tuesday evening does not.
+        assertThat(window.isOpenAt(LocalTime.of(22, 0), DayOfWeek.TUESDAY)).isFalse()
+        // Sunday 00:30 is the tail of Saturday, which is not selected.
+        assertThat(window.isOpenAt(LocalTime.of(0, 30), DayOfWeek.SUNDAY)).isFalse()
+    }
 }

@@ -2,16 +2,20 @@ package com.focuslock.di
 
 import com.focuslock.data.repository.DataStoreSettingsRepository
 import com.focuslock.data.repository.DataStoreRecoveryKeyManager
+import com.focuslock.data.repository.DataStoreEnforcementStateStore
 import com.focuslock.data.repository.AndroidAppRepository
 import com.focuslock.data.repository.RoomEventLogRepository
 import com.focuslock.data.repository.RoomProfileRepository
 import com.focuslock.data.repository.RoomSessionRepository
+import com.focuslock.data.repository.RoomStatsRepository
 import com.focuslock.data.repository.RoomTagRepository
+import com.focuslock.domain.enforcement.EnforcementStateStore
 import com.focuslock.domain.repository.AppRepository
 import com.focuslock.domain.repository.EventLogRepository
 import com.focuslock.domain.repository.ProfileRepository
 import com.focuslock.domain.repository.SessionRepository
 import com.focuslock.domain.repository.SettingsRepository
+import com.focuslock.domain.repository.StatsRepository
 import com.focuslock.domain.repository.TagRepository
 import com.focuslock.domain.session.RecoveryKeyManager
 import dagger.Binds
@@ -51,4 +55,12 @@ abstract class RepositoryModule {
     @Binds
     @Singleton
     abstract fun bindRecoveryKeyManager(impl: DataStoreRecoveryKeyManager): RecoveryKeyManager
+
+    @Binds
+    @Singleton
+    abstract fun bindEnforcementStateStore(impl: DataStoreEnforcementStateStore): EnforcementStateStore
+
+    @Binds
+    @Singleton
+    abstract fun bindStatsRepository(impl: RoomStatsRepository): StatsRepository
 }

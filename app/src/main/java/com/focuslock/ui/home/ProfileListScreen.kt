@@ -38,14 +38,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.focuslock.R
 import com.focuslock.domain.model.FocusProfile
-import com.focuslock.ui.design.BadgeTone
+import com.focuslock.ui.components.AppIconRow
 import com.focuslock.ui.design.EmptyProfilesIllustration
 import com.focuslock.ui.design.FocusCard
 import com.focuslock.ui.design.FocusColors
@@ -53,8 +55,11 @@ import com.focuslock.ui.design.FocusEmptyState
 import com.focuslock.ui.design.FocusSpacing
 import com.focuslock.ui.design.FocusTextButton
 import com.focuslock.ui.design.FocusTopBar
+import com.focuslock.ui.design.NfcPairingIllustration
 import com.focuslock.ui.design.SectionHeader
 import com.focuslock.ui.design.StatusBadge
+import com.focuslock.ui.design.modeBadgeTone
+import com.focuslock.ui.design.modeShortLabel
 import java.time.Duration
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -63,6 +68,7 @@ fun ProfileListScreen(
     onCreateProfile: () -> Unit,
     onEditProfile: (String) -> Unit,
     onOpenTags: () -> Unit,
+    onOpenStats: () -> Unit,
     onOpenDiagnostics: () -> Unit,
     viewModel: ProfileListViewModel = hiltViewModel(),
 ) {
@@ -88,11 +94,23 @@ fun ProfileListScreen(
             FocusTopBar(
                 title = "FocusLock",
                 actions = {
-                    TextButton(onClick = onOpenDiagnostics) {
-                        Text("Diag", style = MaterialTheme.typography.labelMedium)
+                    IconButton(onClick = onOpenStats) {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_stats),
+                            contentDescription = "Stats",
+                        )
                     }
-                    TextButton(onClick = onOpenTags) {
-                        Text("Tags", style = MaterialTheme.typography.labelMedium)
+                    IconButton(onClick = onOpenDiagnostics) {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_tune),
+                            contentDescription = "Diagnostics",
+                        )
+                    }
+                    IconButton(onClick = onOpenTags) {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_nfc),
+                            contentDescription = "NFC tags",
+                        )
                     }
                 },
             )
@@ -116,10 +134,10 @@ fun ProfileListScreen(
                 FocusEmptyState(
                     illustration = { EmptyProfilesIllustration() },
                     title = "No commitments yet",
-                    body = "Create a Focus Profile to define a commitment: duration, blocked apps and an activation window. You can also seed ready-made Work and Sleep profiles in dev mode.",
+                    body = "Create a Focus Profile to define a commitment: duration, blocked apps and an activation window.",
                     action = {
                         if (devMode) {
-                            FocusTextButton(text = "Seed default profiles", onClick = viewModel::seedDefaults)
+                            FocusTextButton(text = "Re-add starter profiles", onClick = viewModel::seedDefaults)
                         }
                     },
                     modifier = Modifier.fillMaxSize(),
@@ -130,6 +148,9 @@ fun ProfileListScreen(
                     contentPadding = PaddingValues(FocusSpacing.L),
                     verticalArrangement = Arrangement.spacedBy(FocusSpacing.M),
                 ) {
+                    item {
+                        TapToStartHero(onOpenTags = onOpenTags)
+                    }
                     item {
                         SectionHeader(
                             title = "Profiles",
@@ -181,6 +202,41 @@ private fun AccessibilityBanner(onEnable: () -> Unit) {
 }
 
 @Composable
+private fun TapToStartHero(onOpenTags: () -> Unit) {
+    FocusCard(onClick = onOpenTags, modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(FocusSpacing.L),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            NfcPairingIllustration(iconSize = 84.dp)
+            Spacer(Modifier.width(FocusSpacing.L))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    "Tap a tag to begin",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Spacer(Modifier.height(FocusSpacing.XS))
+                Text(
+                    "Hold your FocusLock tag to the phone to start a commitment.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(FocusSpacing.S))
+                Text(
+                    "Manage tags",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
+        }
+    }
+}
+
+@Composable
 internal fun CommitmentCard(
     profile: FocusProfile,
     showRun: Boolean,
@@ -214,8 +270,8 @@ internal fun CommitmentCard(
                 Spacer(Modifier.height(FocusSpacing.S))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     StatusBadge(
-                        text = if (profile.enforcementMode.name == "HARD") "Hard" else "Soft",
-                        tone = if (profile.enforcementMode.name == "HARD") BadgeTone.Amber else BadgeTone.Neutral,
+                        text = profile.enforcementMode.modeShortLabel,
+                        tone = profile.enforcementMode.modeBadgeTone,
                     )
                     Spacer(Modifier.width(FocusSpacing.S))
                     Text(
@@ -223,6 +279,10 @@ internal fun CommitmentCard(
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                }
+                if (profile.blockedPackages.isNotEmpty()) {
+                    Spacer(Modifier.height(FocusSpacing.M))
+                    AppIconRow(packages = profile.blockedPackages)
                 }
             }
             if (showRun) {

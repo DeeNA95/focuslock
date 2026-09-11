@@ -19,6 +19,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.util.UUID
@@ -45,6 +46,17 @@ class ProfileListViewModel @Inject constructor(
 
     private val _messages = MutableSharedFlow<String>(extraBufferCapacity = 1)
     val messages: SharedFlow<String> = _messages.asSharedFlow()
+
+    init {
+        // Install the starter profiles once, on first launch, so they are ready
+        // without a manual action.
+        viewModelScope.launch {
+            if (!settingsRepository.defaultsSeeded.first()) {
+                defaultsInstaller.installIfNeeded()
+                settingsRepository.setDefaultsSeeded(true)
+            }
+        }
+    }
 
     /** Re-reads the accessibility service grant (call on screen resume). */
     fun refreshAccessibilityState() {

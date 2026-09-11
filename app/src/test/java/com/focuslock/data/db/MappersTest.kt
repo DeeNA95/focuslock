@@ -58,6 +58,7 @@ class MappersTest {
             profileNameSnapshot = "Deep Work",
             startedAtWallClock = started,
             startedAtElapsedRealtimeMs = 1_234_567L,
+            startedAtBootId = 42L,
             expiresAtWallClock = started.plus(Duration.ofHours(8)),
             duration = Duration.ofHours(8),
             blockedPackagesSnapshot = setOf("com.instagram.android"),

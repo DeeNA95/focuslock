@@ -1,4 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="ic_launcher_background">#1B2735</color>
+
+    <!-- "Quiet Discipline" palette mirrored for native (non-Compose) views.
+         Keep in sync with com.focuslock.ui.design.FocusColors. -->
+    <color name="focus_charcoal_900">#0E1116</color>
+    <color name="focus_charcoal_800">#161B22</color>
+    <color name="focus_charcoal_700">#1B2129</color>
+    <color name="focus_charcoal_600">#222933</color>
+    <color name="focus_charcoal_500">#2A313B</color>
+
+    <color name="focus_ivory">#EDE6DA</color>
+    <color name="focus_ivory_dim">#A8A29A</color>
+    <color name="focus_ivory_faint">#7A7570</color>
+
+    <color name="focus_amber">#D9A441</color>
+    <color name="focus_amber_light">#F0DC9E</color>
+    <color name="focus_amber_dark">#8A6D2F</color>
+
+    <color name="focus_outline">#3D4550</color>
 </resources>

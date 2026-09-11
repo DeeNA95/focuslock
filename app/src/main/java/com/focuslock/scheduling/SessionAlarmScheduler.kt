@@ -53,6 +53,17 @@ class SessionAlarmScheduler @Inject constructor(
         }
     }
 
+    override fun scheduleRetry(sessionId: UUID, delayMs: Long) {
+        val alarm = alarmManager ?: return
+        val triggerAt = SystemClock.elapsedRealtime() + delayMs.coerceAtLeast(MIN_TRIGGER_MS)
+        // Inexact: a retry only needs to happen soon, not on the millisecond.
+        alarm.setAndAllowWhileIdle(
+            AlarmManager.ELAPSED_REALTIME_WAKEUP,
+            triggerAt,
+            buildPendingIntent(sessionId),
+        )
+    }
+
     override fun cancel(sessionId: UUID) {
         alarmManager?.cancel(buildPendingIntent(sessionId))
     }

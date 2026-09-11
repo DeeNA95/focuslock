@@ -16,6 +16,14 @@ interface TimeAuthority {
     /** Monotonic elapsed realtime in milliseconds (same boot only). */
     fun elapsedRealtimeMillis(): Long
 
+    /**
+     * Identifier of the current boot, stable for the lifetime of a boot and
+     * different after a reboot. Unlike [elapsedRealtimeMillis] it can be
+     * compared against a value persisted before a reboot, so reboot detection
+     * does not depend on elapsed uptime heuristics.
+     */
+    fun bootId(): Long
+
     /** The zone used to interpret local-time rules (activation windows, etc.). */
     fun zoneId(): ZoneId
 }

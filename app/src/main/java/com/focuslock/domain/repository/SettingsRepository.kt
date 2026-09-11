@@ -13,8 +13,12 @@ interface SettingsRepository {
     val confirmationRequired: Flow<Boolean>
     val devModeEnabled: Flow<Boolean>
 
+    /** Whether the starter profiles have been installed for this install. */
+    val defaultsSeeded: Flow<Boolean>
+
     suspend fun setOnboardingComplete(value: Boolean)
     suspend fun setDefaultEnforcementMode(mode: EnforcementMode)
     suspend fun setConfirmationRequired(value: Boolean)
     suspend fun setDevModeEnabled(value: Boolean)
+    suspend fun setDefaultsSeeded(value: Boolean)
 }

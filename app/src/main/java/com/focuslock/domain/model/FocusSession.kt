@@ -28,6 +28,13 @@ data class FocusSession(
 
     val startedAtElapsedRealtimeMs: Long,
 
+    /**
+     * [com.focuslock.domain.time.TimeAuthority.bootId] at activation. Compared
+     * against the current boot id to detect a reboot unambiguously, even after
+     * long uptime. `0` for sessions persisted before this field existed.
+     */
+    val startedAtBootId: Long = 0L,
+
     val expiresAtWallClock: Instant,
 
     val duration: Duration,
@@ -37,6 +44,10 @@ data class FocusSession(
     val enforcementMode: EnforcementMode,
 
     val fortressModeEnabled: Boolean,
+
+    val openBehavior: OpenBehavior = OpenBehavior.BLOCK,
+
+    val enableDnd: Boolean = false,
 
     val mottoSnapshot: String = "",
 

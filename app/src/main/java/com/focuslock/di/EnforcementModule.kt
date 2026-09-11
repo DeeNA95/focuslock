@@ -1,12 +1,15 @@
 package com.focuslock.di
 
+import com.focuslock.domain.session.DndPolicy
 import com.focuslock.domain.session.SessionNotifier
 import com.focuslock.domain.session.SessionScheduler
 import com.focuslock.domain.session.TemporaryPolicyManager
 import com.focuslock.enforcement.DefaultEnforcementBackendProvider
 import com.focuslock.enforcement.EnforcementBackendProvider
 import com.focuslock.enforcement.deviceowner.FortressPolicyManager
+import com.focuslock.notification.AndroidDndPolicy
 import com.focuslock.notification.AndroidSessionNotifier
+import com.focuslock.notification.CompositePolicyManager
 import com.focuslock.scheduling.SessionAlarmScheduler
 import dagger.Binds
 import dagger.Module
@@ -24,7 +27,11 @@ abstract class EnforcementModule {
 
     @Binds
     @Singleton
-    abstract fun bindTemporaryPolicyManager(impl: FortressPolicyManager): TemporaryPolicyManager
+    abstract fun bindTemporaryPolicyManager(impl: CompositePolicyManager): TemporaryPolicyManager
+
+    @Binds
+    @Singleton
+    abstract fun bindDndPolicy(impl: AndroidDndPolicy): DndPolicy
 }
 
 @Module

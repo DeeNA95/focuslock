@@ -5,6 +5,7 @@ import com.focuslock.domain.model.FocusSession
 import com.focuslock.domain.model.SessionStatus
 import com.focuslock.enforcement.EnforcementBackendProvider
 import com.focuslock.enforcement.FakeEnforcementBackend
+import com.focuslock.testutil.FakeEnforcementStateStore
 import com.focuslock.testutil.FakeEventLog
 import com.focuslock.testutil.FakeNotifier
 import com.focuslock.testutil.FakeRecoveryKeyManager
@@ -47,6 +48,7 @@ class SessionReconcilerTest {
         scheduler: FakeScheduler = FakeScheduler(),
         notifier: FakeNotifier = FakeNotifier(),
         events: FakeEventLog = FakeEventLog(),
+        stateStore: FakeEnforcementStateStore = FakeEnforcementStateStore(),
     ) = SessionReconciler(
         sessionRepository = repo,
         sessionClock = SessionClock(time),
@@ -57,6 +59,8 @@ class SessionReconcilerTest {
         timeAuthority = time,
         policyManager = FakeTemporaryPolicyManager(),
         recoveryKeyManager = FakeRecoveryKeyManager(),
+        stateStore = stateStore,
+        lock = SessionLock(),
     )
 
     @Test
@@ -94,6 +98,47 @@ class SessionReconcilerTest {
         assertThat(scheduler.cancelled).contains(s.id)
         assertThat(repo.sessions.single().status).isEqualTo(SessionStatus.COMPLETED)
         assertThat(repo.getActiveSession()).isNull()
+    }
+
+    @Test
+    fun `expired session with a failed unlock stays expiring and retries`() = runTest {
+        val time = FakeTimeAuthority(elapsedMillis = 1_000L)
+        val backend = FakeEnforcementBackend(failResumeOn = setOf("b"))
+        backend.suspendPackages(setOf("a", "b"))
+        val repo = FakeSessionRepository()
+        val scheduler = FakeScheduler()
+        val reconciler = buildReconciler(time, backend, repo, scheduler = scheduler)
+
+        val s = session(startedAtElapsedMs = 1_000L, packages = setOf("a", "b"))
+        repo.createSession(s)
+        time.advanceElapsed(Duration.ofHours(9).toMillis())
+
+        reconciler.reconcile()
+
+        assertThat(repo.sessions.single().status).isEqualTo(SessionStatus.EXPIRING)
+        assertThat(repo.getActiveSession()).isNotNull()
+        assertThat(scheduler.retried).contains(s.id)
+        assertThat(backend.suspendedPackages).containsExactly("b")
+    }
+
+    @Test
+    fun `no active session releases orphaned suspended packages`() = runTest {
+        val time = FakeTimeAuthority(elapsedMillis = 1_000L)
+        val backend = FakeEnforcementBackend()
+        backend.suspendPackages(setOf("a", "b"))
+        val stateStore = FakeEnforcementStateStore()
+        stateStore.recordSuspended(EnforcementMode.SOFT, setOf("a", "b"))
+        val reconciler = buildReconciler(
+            time,
+            backend,
+            FakeSessionRepository(),
+            stateStore = stateStore,
+        )
+
+        reconciler.reconcile()
+
+        assertThat(backend.suspendedPackages).isEmpty()
+        assertThat(stateStore.suspendedPackages(EnforcementMode.SOFT)).isEmpty()
     }
 
     @Test

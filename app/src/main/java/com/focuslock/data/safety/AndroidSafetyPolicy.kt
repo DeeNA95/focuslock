@@ -2,6 +2,7 @@ package com.focuslock.data.safety
 
 import android.content.Context
 import android.content.Intent
+import android.os.SystemClock
 import android.provider.Settings
 import android.telecom.TelecomManager
 import com.focuslock.domain.safety.SafetyPolicy
@@ -13,18 +14,36 @@ import javax.inject.Singleton
  * Android-aware [SafetyPolicy] that discovers critical package names at
  * runtime (launcher, default IME, default dialer, FocusLock itself) and
  * supplements them with a small, stable set of AOSP system packages.
+ *
+ * Runtime-discovered entries (launcher, IME, dialer) can change while the app
+ * is alive, so the set is cached only briefly rather than snapshotted once.
  */
 @Singleton
 class AndroidSafetyPolicy @Inject constructor(
-    @ApplicationContext context: Context,
+    @ApplicationContext private val context: Context,
 ) : SafetyPolicy {
 
-    private val protectedSet: Set<String> = buildProtectedSet(context)
+    @Volatile
+    private var cachedProtected: Set<String>? = null
 
-    override fun isProtected(packageName: String): Boolean =
-        packageName in protectedSet
+    @Volatile
+    private var cachedAtElapsedMs: Long = 0L
+
+    override fun isProtected(packageName: String): Boolean = packageName in protectedSet()
+
+    private fun protectedSet(): Set<String> {
+        val now = SystemClock.elapsedRealtime()
+        val cached = cachedProtected
+        if (cached != null && now - cachedAtElapsedMs < CACHE_TTL_MS) return cached
+        return buildProtectedSet(context).also {
+            cachedProtected = it
+            cachedAtElapsedMs = now
+        }
+    }
 
     companion object {
+        private const val CACHE_TTL_MS = 30_000L
+
         fun buildProtectedSet(context: Context): Set<String> {
             val result = mutableSetOf<String>()
 

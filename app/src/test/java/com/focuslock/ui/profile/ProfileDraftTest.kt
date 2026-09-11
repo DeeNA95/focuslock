@@ -75,4 +75,22 @@ class ProfileDraftTest {
         val draft = ProfileDraft(id = id, name = "Gym", durationHours = 2)
         assertThat(draft.toProfile().id).isEqualTo(id)
     }
+
+    @Test
+    fun `save preserves activation windows the editor does not expose`() {
+        val extra = com.focuslock.domain.model.ActivationWindow(
+            start = java.time.LocalTime.of(6, 0),
+            end = java.time.LocalTime.of(7, 0),
+        )
+        val draft = ProfileDraft(
+            name = "Deep Work",
+            restrictActivation = true,
+            extraActivationWindows = listOf(extra),
+        )
+
+        val windows = draft.toProfile().activationWindows
+
+        assertThat(windows).hasSize(2)
+        assertThat(windows[1]).isEqualTo(extra)
+    }
 }

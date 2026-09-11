@@ -12,11 +12,14 @@ class FakeTimeAuthority(
     private var nowInstant: Instant = Instant.parse("2026-01-01T12:00:00Z"),
     private var elapsedMillis: Long = 0L,
     private val zone: ZoneId = ZoneId.of("UTC"),
+    private var boot: Long = 0L,
 ) : TimeAuthority {
 
     override fun now(): Instant = nowInstant
 
     override fun elapsedRealtimeMillis(): Long = elapsedMillis
+
+    override fun bootId(): Long = boot
 
     override fun zoneId(): ZoneId = zone
 
@@ -34,5 +37,11 @@ class FakeTimeAuthority(
 
     fun setElapsed(millis: Long) {
         elapsedMillis = millis
+    }
+
+    /** Simulate a reboot: elapsed resets and the boot id changes. */
+    fun reboot(newBootId: Long = boot + 1) {
+        boot = newBootId
+        elapsedMillis = 0L
     }
 }
